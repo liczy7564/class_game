@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>記憶翻牌遊戲</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Noto+Sans+TC:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+<style>
+  :root {
+    --bg: #080b1a;
+    --bg2: #0d1230;
+    --card-back: #131a3e;
+    --card-border: #2a3270;
+    --neon-cyan: #00f5ff;
+    --neon-orange: #ff6b35;
+    --neon-pink: #ff2d8f;
+    --neon-green: #39ff14;
+    --text: #e8eaf6;
+    --text-dim: #6e7ab0;
+    --gold: #ffd700;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans TC', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+    position: relative;
+  }
+
+  /* Starfield background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      radial-gradient(circle at 20% 30%, rgba(0,245,255,0.04) 0%, transparent 50%),
+      radial-gradient(circle at 80% 70%, rgba(255,45,143,0.04) 0%, transparent 50%),
+      radial-gradient(1px 1px at 10% 20%, rgba(255,255,255,0.4) 0%, transparent 100%),
+      radial-gradient(1px 1px at 30% 60%, rgba(255,255,255,0.3) 0%, transparent 100%),
+      radial-gradient(1px 1px at 60% 10%, rgba(255,255,255,0.5) 0%, transparent 100%),
+      radial-gradient(1px 1px at 85% 45%, rgba(255,255,255,0.3) 0%, transparent 100%),
+      radial-gradient(1px 1px at 50% 85%, rgba(255,255,255,0.4) 0%, transparent 100%),
+      radial-gradient(1px 1px at 70% 75%, rgba(255,255,255,0.2) 0%, transparent 100%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .screen {
+    display: none;
+    position: relative;
+    z-index: 1;
+  }
+  .screen.active { display: flex; }
+
+  /* ===== HOME SCREEN ===== */
+  #home {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 40px 20px;
+  }
+
+  .game-title {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(2rem, 6vw, 4rem);
+    font-weight: 900;
+    text-align: center;
+    line-height: 1.1;
+    margin-bottom: 8px;
+    color: var(--neon-cyan);
+    text-shadow:
+      0 0 20px rgba(0,245,255,0.8),
+      0 0 40px rgba(0,245,255,0.4),
+      0 0 80px rgba(0,245,255,0.2);
+    letter-spacing: 0.05em;
+  }
+
+  .game-subtitle {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(0.7rem, 2vw, 1rem);
+    color: var(--text-dim);
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    text-align: center;
+    margin-bottom: 60px;
+  }
+
+  .difficulty-label {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.3em;
+    color: var(--text-dim);
+    margin-bottom: 24px;
+    text-align: center;
+  }
+
+  .difficulty-cards {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-bottom: 20px;
+  }
+
+  .diff-card {
+    width: 160px;
+    padding: 28px 20px;
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    background: var(--bg2);
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .diff-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity 0.3s;
+    border-radius: 12px;
+  }
+
+  .diff-card.easy::before   { background: radial-gradient(ellipse at center, rgba(57,255,20,0.15), transparent 70%); }
+  .diff-card.medium::before { background: radial-gradient(ellipse at center, rgba(0,245,255,0.15), transparent 70%); }
+  .diff-card.hard::before   { background: radial-gradient(ellipse at center, rgba(255,45,143,0.15), transparent 70%); }
+
+  .diff-card:hover::before { opacity: 1; }
+
+  .diff-card.easy:hover   { border-color: var(--neon-green); box-shadow: 0 0 20px rgba(57,255,20,0.3), inset 0 0 20px rgba(57,255,20,0.05); transform: translateY(-4px); }
+  .diff-card.medium:hover { border-color: var(--neon-cyan);  box-shadow: 0 0 20px rgba(0,245,255,0.3), inset 0 0 20px rgba(0,245,255,0.05); transform: translateY(-4px); }
+  .diff-card.hard:hover   { border-color: var(--neon-pink);  box-shadow: 0 0 20px rgba(255,45,143,0.3), inset 0 0 20px rgba(255,45,143,0.05); transform: translateY(-4px); }
+
+  .diff-icon {
+    font-size: 2.2rem;
+    margin-bottom: 12px;
+    display: block;
+  }
+
+  .diff-name {
+    font-family: 'Orbitron', monospace;
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .diff-card.easy .diff-name   { color: var(--neon-green); }
+  .diff-card.medium .diff-name { color: var(--neon-cyan); }
+  .diff-card.hard .diff-name   { color: var(--neon-pink); }
+
+  .diff-size {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+  }
+  .diff-pairs {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+
+  /* ===== GAME SCREEN ===== */
+  #game {
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 16px 12px 30px;
+  }
+
+  .game-header {
+    width: 100%;
+    max-width: 900px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+    margin-bottom: 16px;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .header-logo {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--neon-cyan);
+    text-shadow: 0 0 10px rgba(0,245,255,0.5);
+    white-space: nowrap;
+  }
+
+  .stats-bar {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .stat-box {
+    background: var(--bg2);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    padding: 6px 14px;
+    text-align: center;
+    min-width: 80px;
+  }
+
+  .stat-label {
+    font-size: 0.6rem;
+    letter-spacing: 0.15em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    display: block;
+  }
+
+  .stat-value {
+    font-family: 'Orbitron', monospace;
+    font-size: 1.1rem;
+    font-weight: 700;
+    display: block;
+    margin-top: 2px;
+  }
+
+  #stat-time { color: var(--neon-orange); }
+  #stat-matched { color: var(--neon-green); }
+  #stat-remaining { color: var(--neon-pink); }
+
+  .header-controls {
+    display: flex;
+    gap: 8px;
+  }
+
+  .ctrl-btn {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    padding: 7px 14px;
+    border-radius: 6px;
+    border: 1px solid;
+    cursor: pointer;
+    background: transparent;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  .btn-pause {
+    border-color: var(--neon-orange);
+    color: var(--neon-orange);
+  }
+  .btn-pause:hover {
+    background: rgba(255,107,53,0.15);
+    box-shadow: 0 0 12px rgba(255,107,53,0.3);
+  }
+
+  .btn-restart {
+    border-color: var(--text-dim);
+    color: var(--text-dim);
+  }
+  .btn-restart:hover {
+    border-color: var(--text);
+    color: var(--text);
+  }
+
+  /* Pause overlay */
+  .pause-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(8,11,26,0.92);
+    z-index: 100;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+  }
+  .pause-overlay.show { display: flex; }
+
+  .pause-title {
+    font-family: 'Orbitron', monospace;
+    font-size: 3rem;
+    font-weight: 900;
+    color: var(--neon-orange);
+    text-shadow: 0 0 30px rgba(255,107,53,0.7);
+    margin-bottom: 12px;
+    letter-spacing: 0.2em;
+  }
+  .pause-sub {
+    color: var(--text-dim);
+    font-size: 0.9rem;
+    letter-spacing: 0.2em;
+  }
+
+  /* Card grid */
+  .card-grid {
+    display: grid;
+    gap: 8px;
+    width: 100%;
+    max-width: 780px;
+  }
+
+  .card-grid.grid-4 { grid-template-columns: repeat(4, 1fr); }
+  .card-grid.grid-6 { grid-template-columns: repeat(6, 1fr); }
+  .card-grid.grid-8 { grid-template-columns: repeat(8, 1fr); }
+
+  .card-wrap {
+    perspective: 600px;
+    aspect-ratio: 1;
+    cursor: pointer;
+  }
+
+  .card-inner {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    transform-style: preserve-3d;
+    transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 8px;
+  }
+
+  .card-wrap.flipped .card-inner  { transform: rotateY(180deg); }
+  .card-wrap.matched .card-inner  { transform: rotateY(180deg); }
+
+  .card-face {
+    position: absolute;
+    inset: 0;
+    border-radius: 8px;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Card back */
+  .card-back {
+    background: var(--card-back);
+    border: 1px solid var(--card-border);
+    overflow: hidden;
+  }
+
+  .card-back::before {
+    content: '';
+    position: absolute;
+    inset: 3px;
+    border: 1px solid rgba(42,50,112,0.6);
+    border-radius: 6px;
+  }
+
+  .card-back::after {
+    content: '?';
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(0.8rem, 3vw, 1.4rem);
+    font-weight: 700;
+    color: var(--card-border);
+  }
+
+  /* Card front */
+  .card-front {
+    background: var(--bg2);
+    border: 1px solid;
+    transform: rotateY(180deg);
+  }
+
+  .card-front .card-number {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(1rem, 3.5vw, 1.8rem);
+    font-weight: 900;
+  }
+
+  /* Color variants per number mod */
+  .card-wrap[data-color="0"] .card-front { border-color: rgba(0,245,255,0.6); }
+  .card-wrap[data-color="0"] .card-number { color: var(--neon-cyan); text-shadow: 0 0 12px rgba(0,245,255,0.7); }
+  .card-wrap[data-color="1"] .card-front { border-color: rgba(255,107,53,0.6); }
+  .card-wrap[data-color="1"] .card-number { color: var(--neon-orange); text-shadow: 0 0 12px rgba(255,107,53,0.7); }
+  .card-wrap[data-color="2"] .card-front { border-color: rgba(255,45,143,0.6); }
+  .card-wrap[data-color="2"] .card-number { color: var(--neon-pink); text-shadow: 0 0 12px rgba(255,45,143,0.7); }
+  .card-wrap[data-color="3"] .card-front { border-color: rgba(57,255,20,0.6); }
+  .card-wrap[data-color="3"] .card-number { color: var(--neon-green); text-shadow: 0 0 12px rgba(57,255,20,0.7); }
+  .card-wrap[data-color="4"] .card-front { border-color: rgba(255,215,0,0.6); }
+  .card-wrap[data-color="4"] .card-number { color: var(--gold); text-shadow: 0 0 12px rgba(255,215,0,0.7); }
+  .card-wrap[data-color="5"] .card-front { border-color: rgba(180,100,255,0.6); }
+  .card-wrap[data-color="5"] .card-number { color: #b464ff; text-shadow: 0 0 12px rgba(180,100,255,0.7); }
+  .card-wrap[data-color="6"] .card-front { border-color: rgba(0,191,255,0.6); }
+  .card-wrap[data-color="6"] .card-number { color: #00bfff; text-shadow: 0 0 12px rgba(0,191,255,0.7); }
+  .card-wrap[data-color="7"] .card-front { border-color: rgba(255,165,0,0.6); }
+  .card-wrap[data-color="7"] .card-number { color: #ffa500; text-shadow: 0 0 12px rgba(255,165,0,0.7); }
+
+  /* Matched state */
+  .card-wrap.matched .card-front {
+    background: rgba(57,255,20,0.08);
+    animation: matchPulse 0.5s ease-out;
+  }
+
+  @keyframes matchPulse {
+    0%   { transform: rotateY(180deg) scale(1); }
+    40%  { transform: rotateY(180deg) scale(1.12); }
+    100% { transform: rotateY(180deg) scale(1); }
+  }
+
+  /* Wrong shake */
+  .card-wrap.wrong .card-inner {
+    animation: wrongShake 0.4s ease;
+  }
+
+  @keyframes wrongShake {
+    0%, 100% { transform: rotateY(180deg) translateX(0); }
+    20%       { transform: rotateY(180deg) translateX(-5px); }
+    60%       { transform: rotateY(180deg) translateX(5px); }
+  }
+
+  /* ===== END SCREEN ===== */
+  #end {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 40px 20px;
+    text-align: center;
+  }
+
+  .end-badge {
+    font-size: 4rem;
+    margin-bottom: 16px;
+    animation: badgePop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  @keyframes badgePop {
+    from { transform: scale(0) rotate(-30deg); opacity: 0; }
+    to   { transform: scale(1) rotate(0deg); opacity: 1; }
+  }
+
+  .end-title {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(1.8rem, 5vw, 3rem);
+    font-weight: 900;
+    color: var(--gold);
+    text-shadow: 0 0 30px rgba(255,215,0,0.6);
+    margin-bottom: 8px;
+    letter-spacing: 0.05em;
+  }
+
+  .end-subtitle {
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    letter-spacing: 0.2em;
+    margin-bottom: 48px;
+  }
+
+  .end-result-box {
+    background: var(--bg2);
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    padding: 32px 48px;
+    margin-bottom: 40px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .end-result-box::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  }
+
+  .result-label {
+    font-size: 0.7rem;
+    letter-spacing: 0.25em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  .result-time {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(2.5rem, 8vw, 4.5rem);
+    font-weight: 900;
+    color: var(--neon-cyan);
+    text-shadow: 0 0 30px rgba(0,245,255,0.6);
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+
+  .result-diff {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    letter-spacing: 0.15em;
+  }
+
+  .result-pairs {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.9rem;
+    color: var(--neon-green);
+    margin-top: 12px;
+  }
+
+  .end-buttons {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .end-btn {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.8rem;
+    letter-spacing: 0.12em;
+    padding: 14px 28px;
+    border-radius: 8px;
+    border: 1px solid;
+    cursor: pointer;
+    background: transparent;
+    transition: all 0.25s;
+  }
+
+  .end-btn.primary {
+    border-color: var(--neon-cyan);
+    color: var(--neon-cyan);
+  }
+  .end-btn.primary:hover {
+    background: rgba(0,245,255,0.12);
+    box-shadow: 0 0 20px rgba(0,245,255,0.3);
+  }
+
+  .end-btn.secondary {
+    border-color: var(--text-dim);
+    color: var(--text-dim);
+  }
+  .end-btn.secondary:hover {
+    border-color: var(--text);
+    color: var(--text);
+  }
+
+  /* Timer blink when paused */
+  .stat-box.paused #stat-time {
+    animation: blinkTimer 1s step-end infinite;
+  }
+  @keyframes blinkTimer {
+    50% { opacity: 0.2; }
+  }
+
+  /* Scanline effect */
+  .screen::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.03) 2px,
+      rgba(0,0,0,0.03) 4px
+    );
+    pointer-events: none;
+    z-index: 999;
+  }
+
+  /* Responsive */
+  @media (max-width: 500px) {
+    .card-grid { gap: 5px; }
+    .game-header { gap: 8px; }
+    .stats-bar { gap: 8px; }
+    .stat-box { padding: 5px 10px; min-width: 66px; }
+    .stat-value { font-size: 0.95rem; }
+    .end-result-box { padding: 24px 28px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HOME SCREEN -->
+<div id="home" class="screen active">
+  <div class="game-title">MEMORY<br>FLIP</div>
+  <div class="game-subtitle">記憶翻牌挑戰</div>
+
+  <div class="difficulty-label">— 選擇難度 —</div>
+
+  <div class="difficulty-cards">
+    <div class="diff-card easy" data-diff="easy">
+      <span class="diff-icon">🟢</span>
+      <div class="diff-name">EASY</div>
+      <div class="diff-size">4 × 4 格</div>
+      <div class="diff-pairs">8 對配對</div>
+    </div>
+    <div class="diff-card medium" data-diff="medium">
+      <span class="diff-icon">🔵</span>
+      <div class="diff-name">MEDIUM</div>
+      <div class="diff-size">6 × 6 格</div>
+      <div class="diff-pairs">18 對配對</div>
+    </div>
+    <div class="diff-card hard" data-diff="hard">
+      <span class="diff-icon">🔴</span>
+      <div class="diff-name">HARD</div>
+      <div class="diff-size">8 × 8 格</div>
+      <div class="diff-pairs">32 對配對</div>
+    </div>
+  </div>
+</div>
+
+<!-- GAME SCREEN -->
+<div id="game" class="screen">
+  <div class="game-header">
+    <div class="header-logo">MEMORY FLIP</div>
+
+    <div class="stats-bar">
+      <div class="stat-box" id="time-box">
+        <span class="stat-label">時間</span>
+        <span class="stat-value" id="stat-time">00:00</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-label">已配對</span>
+        <span class="stat-value" id="stat-matched">0</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-label">剩餘</span>
+        <span class="stat-value" id="stat-remaining">0</span>
+      </div>
+    </div>
+
+    <div class="header-controls">
+      <button class="ctrl-btn btn-pause" id="btn-pause">⏸ 暫停</button>
+      <button class="ctrl-btn btn-restart" id="btn-restart">↺ 重來</button>
+    </div>
+  </div>
+
+  <div class="card-grid" id="card-grid"></div>
+</div>
+
+<!-- PAUSE OVERLAY -->
+<div class="pause-overlay" id="pause-overlay">
+  <div class="pause-title">PAUSED</div>
+  <div class="pause-sub">點擊任意處繼續</div>
+</div>
+
+<!-- END SCREEN -->
+<div id="end" class="screen">
+  <div class="end-badge">🏆</div>
+  <div class="end-title">CLEAR!</div>
+  <div class="end-subtitle">全部配對完成！</div>
+
+  <div class="end-result-box">
+    <div class="result-label">完成時間</div>
+    <div class="result-time" id="end-time">00:00</div>
+    <div class="result-diff" id="end-diff"></div>
+    <div class="result-pairs" id="end-pairs"></div>
+  </div>
+
+  <div class="end-buttons">
+    <button class="end-btn primary" id="btn-play-again">▶ 再玩一次</button>
+    <button class="end-btn secondary" id="btn-home">⌂ 回主選單</button>
+  </div>
+</div>
+
+<script>
+$(function () {
+
+  // ─── State ───────────────────────────────────────────
+  const DIFF = {
+    easy:   { size: 4, label: '簡單 4×4' },
+    medium: { size: 6, label: '中等 6×6' },
+    hard:   { size: 8, label: '困難 8×8' },
+  };
+
+  let currentDiff = 'easy';
+  let timerInterval = null;
+  let seconds = 0;
+  let isPaused = false;
+  let isLocked = false;
+  let flippedCards = [];
+  let matchedCount = 0;
+  let totalPairs = 0;
+
+  // ─── Helpers ─────────────────────────────────────────
+  function showScreen(id) {
+    $('.screen').removeClass('active');
+    $('#' + id).addClass('active');
+  }
+
+  function formatTime(s) {
+    const m = Math.floor(s / 60).toString().padStart(2, '0');
+    const sec = (s % 60).toString().padStart(2, '0');
+    return m + ':' + sec;
+  }
+
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  // ─── Timer ───────────────────────────────────────────
+  function startTimer() {
+    clearInterval(timerInterval);
+    timerInterval = setInterval(function () {
+      if (!isPaused) {
+        seconds++;
+        $('#stat-time').text(formatTime(seconds));
+      }
+    }, 1000);
+  }
+
+  function stopTimer() {
+    clearInterval(timerInterval);
+  }
+
+  // ─── Build board ─────────────────────────────────────
+  function startGame(diff) {
+    currentDiff = diff;
+    const size = DIFF[diff].size;
+    totalPairs = (size * size) / 2;
+    matchedCount = 0;
+    seconds = 0;
+    isPaused = false;
+    isLocked = false;
+    flippedCards = [];
+
+    // Build number array
+    let nums = [];
+    for (let i = 1; i <= totalPairs; i++) nums.push(i, i);
+    shuffle(nums);
+
+    // Update stats
+    $('#stat-time').text('00:00');
+    $('#stat-matched').text('0');
+    $('#stat-remaining').text(totalPairs);
+
+    // Build grid
+    const grid = $('#card-grid');
+    grid.empty()
+        .removeClass('grid-4 grid-6 grid-8')
+        .addClass('grid-' + size);
+
+    nums.forEach(function (num, idx) {
+      const colorIdx = (num - 1) % 8;
+      const card = $(
+        '<div class="card-wrap" data-num="' + num + '" data-color="' + colorIdx + '">' +
+          '<div class="card-inner">' +
+            '<div class="card-face card-back"></div>' +
+            '<div class="card-face card-front"><span class="card-number">' + num + '</span></div>' +
+          '</div>' +
+        '</div>'
+      );
+      grid.append(card);
+    });
+
+    showScreen('game');
+    startTimer();
+  }
+
+  // ─── Card click ──────────────────────────────────────
+  $(document).on('click', '.card-wrap', function () {
+    if (isPaused || isLocked) return;
+    const card = $(this);
+    if (card.hasClass('flipped') || card.hasClass('matched')) return;
+    if (flippedCards.length >= 2) return;
+
+    card.addClass('flipped');
+    flippedCards.push(card);
+
+    if (flippedCards.length === 2) {
+      isLocked = true;
+      const [a, b] = flippedCards;
+
+      if (a.data('num') === b.data('num')) {
+        // Match!
+        setTimeout(function () {
+          a.addClass('matched').removeClass('flipped');
+          b.addClass('matched').removeClass('flipped');
+          matchedCount++;
+          flippedCards = [];
+          isLocked = false;
+
+          $('#stat-matched').text(matchedCount);
+          $('#stat-remaining').text(totalPairs - matchedCount);
+
+          if (matchedCount === totalPairs) {
+            stopTimer();
+            setTimeout(showEnd, 500);
+          }
+        }, 300);
+      } else {
+        // Wrong
+        a.addClass('wrong');
+        b.addClass('wrong');
+        setTimeout(function () {
+          a.removeClass('flipped wrong');
+          b.removeClass('flipped wrong');
+          flippedCards = [];
+          isLocked = false;
+        }, 800);
+      }
+    }
+  });
+
+  // ─── Pause ───────────────────────────────────────────
+  $('#btn-pause').on('click', function () {
+    isPaused = !isPaused;
+    if (isPaused) {
+      $(this).text('▶ 繼續');
+      $('#pause-overlay').addClass('show');
+      $('#time-box').addClass('paused');
+    } else {
+      $(this).text('⏸ 暫停');
+      $('#pause-overlay').removeClass('show');
+      $('#time-box').removeClass('paused');
+    }
+  });
+
+  $('#pause-overlay').on('click', function () {
+    isPaused = false;
+    $('#btn-pause').text('⏸ 暫停');
+    $('#pause-overlay').removeClass('show');
+    $('#time-box').removeClass('paused');
+  });
+
+  // ─── Restart ─────────────────────────────────────────
+  $('#btn-restart').on('click', function () {
+    stopTimer();
+    $('#pause-overlay').removeClass('show');
+    startGame(currentDiff);
+  });
+
+  // ─── Home button ─────────────────────────────────────
+  $('#btn-home').on('click', function () {
+    stopTimer();
+    showScreen('home');
+  });
+
+  // ─── End screen ──────────────────────────────────────
+  function showEnd() {
+    const timeStr = formatTime(seconds);
+    $('#end-time').text(timeStr);
+    $('#end-diff').text(DIFF[currentDiff].label);
+    $('#end-pairs').text('✔ ' + totalPairs + ' 對全部完成');
+    showScreen('end');
+  }
+
+  $('#btn-play-again').on('click', function () {
+    startGame(currentDiff);
+  });
+
+  // ─── Difficulty select ───────────────────────────────
+  $('.diff-card').on('click', function () {
+    const diff = $(this).data('diff');
+    startGame(diff);
+  });
+
+});
+</script>
+</body>
+</html>
